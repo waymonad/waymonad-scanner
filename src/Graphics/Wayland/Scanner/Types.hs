@@ -38,5 +38,3 @@ newtype WlEvent = WlEvent [(String, ArgumentType)]
 data Interface = Interface [(String, WlEnum)] [(String, WlRequest)] [(String, WlEvent)]
 
 data WlProtocol = WlProtocol String [(String, Interface, Int)]
-
-data WlResource

@@ -20,6 +20,8 @@ import Foreign.Marshal.Utils (with)
 import Foreign.Marshal.Alloc (allocaBytes)
 import System.Posix.Types (Fd)
 
+import Graphics.Wayland.Resource (WlResource, resourceGetClient)
+
 import Graphics.Wayland.Scanner.WLS
 import Graphics.Wayland.Scanner.Types
 
@@ -74,28 +76,31 @@ withArrayArg ptr (Just array) act = with (WlArray array) $ \aPtr -> do
     poke ptr aPtr
     act
 
-argTypeToDemarshalExp :: Monad m => ArgumentType -> TH.Exp -> TH.Exp -> Scanner m TH.Exp
-argTypeToDemarshalExp FixedArg  _ _         = error "Can't encode FixdPoint values yet"
-argTypeToDemarshalExp StringArg p e         = pure $ TH.AppE (TH.AppE (TH.VarE 'withStringArg) p) (TH.AppE (TH.ConE 'Just) e)
-argTypeToDemarshalExp NullableStringArg p e = pure $ TH.AppE (TH.AppE (TH.VarE 'withStringArg) p) e
-argTypeToDemarshalExp ArrayArg p e          = pure $ TH.AppE (TH.AppE (TH.VarE 'withArrayArg) p) (TH.AppE (TH.ConE 'Just) e)
-argTypeToDemarshalExp NullableArrayArg p e  = pure $ TH.AppE (TH.AppE (TH.VarE 'withArrayArg) p) e
-argTypeToDemarshalExp (ObjectArg str) p e   = do
+argTypeToDemarshalExp :: Monad m => ArgumentType -> TH.Exp -> TH.Exp -> TH.Exp -> Scanner m TH.Exp
+argTypeToDemarshalExp FixedArg  _ _ _         = error "Can't encode FixdPoint values yet"
+argTypeToDemarshalExp StringArg _ p e         = pure $ TH.AppE (TH.AppE (TH.VarE 'withStringArg) p) (TH.AppE (TH.ConE 'Just) e)
+argTypeToDemarshalExp NullableStringArg _ p e = pure $ TH.AppE (TH.AppE (TH.VarE 'withStringArg) p) e
+argTypeToDemarshalExp ArrayArg _ p e          = pure $ TH.AppE (TH.AppE (TH.VarE 'withArrayArg) p) (TH.AppE (TH.ConE 'Just) e)
+argTypeToDemarshalExp NullableArrayArg _ p e  = pure $ TH.AppE (TH.AppE (TH.VarE 'withArrayArg) p) e
+argTypeToDemarshalExp (ObjectArg str) t p e   = do
     convert <- (\(_, _, v) -> v) <$> getObjectConvert str
     let rpName = TH.mkName "resourcePtr"
-    pure $ TH.DoE
-        [ TH.BindS (TH.VarP rpName) $ TH.AppE (TH.VarE convert) e
-        , TH.NoBindS $ TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) (TH.VarE rpName))
+        cName = TH.mkName "tClient"
+        actName = TH.mkName "act"
+    pure . TH.LamE [TH.VarP actName] $ TH.DoE
+        [ TH.BindS (TH.VarP cName) $ TH.AppE (TH.VarE 'resourceGetClient) t
+        , TH.BindS (TH.VarP rpName) $ TH.AppE (TH.AppE convert (TH.VarE cName)) e
+        , TH.NoBindS $ TH.AppE (TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) (TH.VarE rpName))) (TH.VarE actName)
         ]
-argTypeToDemarshalExp (NullableObjectArg str) p e   = do
+argTypeToDemarshalExp (NullableObjectArg str) _ p e   = do
     convert <- (\(_, _, v) -> v) <$> getObjectConvert str
     let rpName = TH.mkName "resourcePtr"
         unMaybe = TH.AppE (TH.VarE 'fromMaybe) (TH.VarE 'nullPtr)
     pure $ TH.DoE
-        [ TH.BindS (TH.VarP rpName) $ TH.AppE (TH.AppE (TH.VarE 'traverse) (TH.VarE convert)) e
+        [ TH.BindS (TH.VarP rpName) $ TH.AppE (TH.AppE (TH.VarE 'traverse) convert) e
         , TH.NoBindS $ TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) (TH.AppE unMaybe $ TH.VarE rpName))
         ]
-argTypeToDemarshalExp _ p e                 = pure $ TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) e)
+argTypeToDemarshalExp _ _ p e                 = pure $ TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) e)
 
 foreign import ccall "wl_resource_post_event_array" c_post :: Ptr WlResource -> Word32 -> Ptr WlArgument -> IO ()
 
@@ -105,7 +110,7 @@ makePostClause xs opcode = do
         rpName = TH.mkName "targetPtr"
         argNames = take (length xs) $ map (TH.mkName . (++) "arg" . show) [0 :: Int ..]
         callocExp = (TH.AppE (TH.VarE 'allocaBytes) (TH.LitE (TH.IntegerL $ 8 * fromIntegral (length xs))))
-        deMarshalExps (arg, i) argName = argTypeToDemarshalExp arg (TH.AppE (TH.AppE (TH.VarE 'plusPtr) (TH.VarE apName)) (TH.LitE . TH.IntegerL $ i * 8)) (TH.VarE argName)
+        deMarshalExps (arg, i) argName = argTypeToDemarshalExp arg (TH.VarE rpName) (TH.AppE (TH.AppE (TH.VarE 'plusPtr) (TH.VarE apName)) (TH.LitE . TH.IntegerL $ i * 8)) (TH.VarE argName)
     exps <- sequence $ zipWith deMarshalExps (zip xs [0..]) argNames
     let act = TH.AppE (TH.AppE (TH.AppE (TH.VarE 'c_post) (TH.VarE rpName)) (TH.LitE $ TH.IntegerL opcode)) (TH.VarE apName)
         lam = TH.LamE [TH.VarP apName] $ foldr TH.AppE act exps
@@ -173,12 +178,12 @@ argTypeToMarshalExp (ObjectArg str) e = do
     let rpName = TH.mkName "resourcePtr"
     pure $ TH.DoE
         [ TH.BindS (TH.SigP (TH.VarP rpName) (TH.AppT (TH.ConT ''Ptr) (TH.ConT ''WlResource))) (TH.AppE (TH.VarE 'peek) e)
-        , TH.NoBindS (TH.AppE (TH.VarE convert) (TH.VarE rpName))
+        , TH.NoBindS (TH.AppE convert (TH.VarE rpName))
         ]
 argTypeToMarshalExp (NullableObjectArg str) e = do
     convert <- (\(_, v, _) -> v) <$> getObjectConvert str
     let objPtr = TH.mkName "ptrName"
-        falseStmt = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'Just)) $ TH.AppE (TH.VarE convert) (TH.VarE objPtr)
+        falseStmt = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'Just)) $ TH.AppE convert (TH.VarE objPtr)
         trueStmt = TH.AppE (TH.VarE 'pure) (TH.ConE 'Nothing)
     pure $ TH.DoE
         [ TH.BindS (TH.SigP (TH.VarP objPtr) (TH.AppT (TH.ConT ''Ptr) (TH.ConT ''WlResource))) $ TH.AppE (TH.VarE 'peek) e

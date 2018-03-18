@@ -11,6 +11,8 @@ import Data.Word (Word32)
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr, FunPtr, nullPtr, freeHaskellFunPtr)
 
+import Graphics.Wayland.Resource (WlResource)
+
 import Graphics.Wayland.Scanner.WLS
 import Graphics.Wayland.Scanner.Types
 import Graphics.Wayland.Scanner.Marshal
@@ -113,6 +115,7 @@ setResourceDispatcher resource handlers dispatcher destroy = do
         freeStablePtr sPtr
         freeHaskellFunPtr =<< readIORef ref
         destroy
+    writeIORef ref destroyPointer
     c_set_dispatcher
         resource
         dispatcher
