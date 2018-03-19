@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Graphics.Wayland.Scanner
@@ -5,7 +6,6 @@ where
 
 import Foreign.Ptr (Ptr)
 import Control.Monad.Trans (MonadTrans(lift))
-import System.Process (readProcess)
 
 import Graphics.Wayland.Scanner.Dispatcher
 import Graphics.Wayland.Scanner.Marshal
@@ -16,7 +16,11 @@ import Graphics.Wayland.Scanner.XML
 import Utility
 
 import qualified Language.Haskell.TH as TH
+
+#if MIN_VERSION_template_haskell(2, 12, 0)
+import System.Process (readProcess)
 import qualified Language.Haskell.TH.Syntax as THS
+#endif
 
 makeInterfaceGetter :: String -> TH.Dec
 makeInterfaceGetter iface =
@@ -41,6 +45,10 @@ protocolFromFile file = do
     pure $ concat ret
 
 generateInterface :: String -> TH.Q ()
+#if MIN_VERSION_template_haskell(2, 12, 0)
 generateInterface file = do
     content <- TH.runIO $ readProcess "wayland-scanner" ["code", file, "/dev/stdout"] ""
     THS.addForeignFile THS.LangC content
+#else
+generateInterface _ = pure ()
+#endif
