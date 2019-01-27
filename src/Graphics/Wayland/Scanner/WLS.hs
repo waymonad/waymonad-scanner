@@ -10,6 +10,7 @@ module Graphics.Wayland.Scanner.WLS
     )
 where
 
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Data.Map (Map)
@@ -28,8 +29,7 @@ data ScannerEnv = ScannerEnv
     }
 
 newtype Scanner m a = Scanner (ReaderT ScannerEnv m a)
-    deriving (Functor, Applicative, Monad, MonadReader ScannerEnv)
-
+    deriving (Functor, Applicative, Monad, MonadReader ScannerEnv, MonadFail)
 
 getObjectMap :: Monad m => Scanner m ObjectMap
 getObjectMap = scannerObjectMap <$> ask

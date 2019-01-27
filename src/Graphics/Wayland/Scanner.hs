@@ -5,6 +5,7 @@ module Graphics.Wayland.Scanner
 where
 
 import Foreign.Ptr (Ptr)
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadTrans(lift))
 
 import Graphics.Wayland.Scanner.Dispatcher
@@ -29,7 +30,7 @@ makeInterfaceGetter iface =
         importType = TH.AppT (TH.ConT ''Ptr) (TH.ConT ''WlInterface)
      in TH.ForeignD $ TH.ImportF TH.CCall TH.Safe ('&':ifaceName) funName importType
 
-makeInterfaceDecls :: Monad m => (String, Interface, Int) -> Scanner m [TH.Dec]
+makeInterfaceDecls :: (Monad m, MonadFail m) => (String, Interface, Int) -> Scanner m [TH.Dec]
 makeInterfaceDecls (name, (Interface _ reqs evts), _) = do
     reqD <- if null reqs
         then pure []
@@ -48,7 +49,7 @@ generateInterface :: String -> TH.Q ()
 #if MIN_VERSION_template_haskell(2, 12, 0)
 generateInterface file = do
     content <- TH.runIO $ readProcess "wayland-scanner" ["code", file, "/dev/stdout"] ""
-    THS.addForeignFile THS.LangC content
+    THS.addForeignSource THS.LangC content
 #else
 generateInterface _ = pure ()
 #endif

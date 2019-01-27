@@ -5,11 +5,12 @@ where
 
 import Graphics.Wayland.Server (Client (..))
 
+import Control.Monad.Fail (MonadFail)
 import Data.IORef
-import Foreign.StablePtr (castPtrToStablePtr, deRefStablePtr, castStablePtrToPtr, newStablePtr, freeStablePtr)
 import Data.Word (Word32)
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr, FunPtr, nullPtr, freeHaskellFunPtr)
+import Foreign.StablePtr (castPtrToStablePtr, deRefStablePtr, castStablePtrToPtr, newStablePtr, freeStablePtr)
 
 import Graphics.Wayland.Resource (WlResource)
 
@@ -80,7 +81,7 @@ makeSetterBody dispName =
             TH.AppE (TH.AppE (TH.AppE (TH.AppE (TH.VarE 'setResourceDispatcher) (TH.VarE resName)) (TH.VarE implName)) (TH.VarE dispName)) (TH.VarE destroyName)
      in TH.Clause [TH.VarP resName, TH.VarP implName, TH.VarP destroyName] body []
 
-makeDispatcher :: Monad m => String -> [(String, [ArgumentType])] -> Scanner m [TH.Dec]
+makeDispatcher :: (Monad m, MonadFail m) => String -> [(String, [ArgumentType])] -> Scanner m [TH.Dec]
 makeDispatcher name xs = do
     dataType@(TH.DataD _ dataName [] Nothing [TH.RecC _ fs] []) <- makeDispatchRecord name xs
     clause <- makeDispatchClause (dataName, map (\(n, _, _) -> n) fs) $ map snd xs
