@@ -87,7 +87,7 @@ argTypeToDemarshalExp (ObjectArg str) t p e   = do
     let rpName = TH.mkName "resourcePtr"
         cName = TH.mkName "tClient"
         actName = TH.mkName "act"
-    pure . TH.LamE [TH.VarP actName] $ TH.DoE
+    pure . TH.LamE [TH.VarP actName] $ TH.DoE Nothing
         [ TH.BindS (TH.VarP cName) $ TH.AppE (TH.VarE 'resourceGetClient) t
         , TH.BindS (TH.VarP rpName) $ TH.AppE (TH.AppE convert (TH.VarE cName)) e
         , TH.NoBindS $ TH.AppE (TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) (TH.VarE rpName))) (TH.VarE actName)
@@ -96,7 +96,7 @@ argTypeToDemarshalExp (NullableObjectArg str) _ p e   = do
     convert <- (\(_, _, v) -> v) <$> getObjectConvert str
     let rpName = TH.mkName "resourcePtr"
         unMaybe = TH.AppE (TH.VarE 'fromMaybe) (TH.VarE 'nullPtr)
-    pure $ TH.DoE
+    pure $ TH.DoE Nothing
         [ TH.BindS (TH.VarP rpName) $ TH.AppE (TH.AppE (TH.VarE 'traverse) convert) e
         , TH.NoBindS $ TH.AppE (TH.VarE '(>>)) (TH.AppE (TH.AppE (TH.VarE 'poke) p) (TH.AppE unMaybe $ TH.VarE rpName))
         ]
@@ -130,7 +130,7 @@ argTypeToMarshalExp FixedArg  _       = error "Can't decode FixdPoint values yet
 argTypeToMarshalExp StringArg e       = pure $
     let ptrName = TH.mkName "strPtr"
         bsName = TH.mkName "bs"
-     in TH.DoE
+     in TH.DoE Nothing
         [ TH.BindS (TH.VarP ptrName) $ TH.AppE (TH.VarE 'peek) e
         , TH.BindS (TH.VarP bsName) $ TH.AppE (TH.VarE 'unsafePackCString) (TH.VarE ptrName)
         , TH.NoBindS (TH.AppE (TH.VarE 'pure) (TH.AppE (TH.VarE 'E.decodeUtf8) (TH.VarE bsName)))
@@ -139,11 +139,11 @@ argTypeToMarshalExp NullableStringArg e       = pure $
     let ptrName = TH.mkName "strPtr"
         bsName = TH.mkName "bs"
         trueStmt = TH.AppE (TH.VarE 'pure) (TH.ConE 'Nothing)
-        falseStmt = TH.DoE
+        falseStmt = TH.DoE Nothing
             [ TH.BindS (TH.VarP bsName) $ TH.AppE (TH.VarE 'unsafePackCString) (TH.VarE ptrName)
             , TH.NoBindS (TH.AppE (TH.VarE 'pure) (TH.AppE (TH.ConE 'Just) $ TH.AppE (TH.VarE 'E.decodeUtf8) (TH.VarE bsName)))
             ]
-     in TH.DoE
+     in TH.DoE Nothing
         [ TH.BindS (TH.VarP ptrName) $ TH.AppE (TH.VarE 'peek) e
         , TH.NoBindS $ TH.CaseE (TH.AppE ((TH.AppE (TH.VarE '(==)) (TH.VarE 'nullPtr))) (TH.VarE ptrName))
             [ TH.Match (TH.ConP 'True []) (TH.NormalB trueStmt) []
@@ -153,7 +153,7 @@ argTypeToMarshalExp NullableStringArg e       = pure $
 argTypeToMarshalExp ArrayArg e    = pure $
     let ptrName = TH.mkName "arrayPtr"
         arrName = TH.mkName "array"
-     in TH.DoE
+     in TH.DoE Nothing
         [ TH.BindS (TH.VarP ptrName) $ TH.AppE (TH.VarE 'peek) e
         , TH.BindS (TH.VarP arrName) $ TH.AppE (TH.VarE 'peek) (TH.VarE ptrName)
         , TH.NoBindS (TH.AppE (TH.VarE 'pure) (TH.AppE (TH.VarE 'unArray) (TH.VarE arrName )))
@@ -161,12 +161,12 @@ argTypeToMarshalExp ArrayArg e    = pure $
 argTypeToMarshalExp NullableArrayArg e    = pure $
     let ptrName = TH.mkName "arrayPtr"
         arrName = TH.mkName "array"
-        falseStmt = TH.DoE
+        falseStmt = TH.DoE Nothing
             [ TH.BindS (TH.VarP arrName) $ TH.AppE (TH.VarE 'peek) (TH.VarE ptrName)
             , TH.NoBindS (TH.AppE (TH.VarE 'pure) $ TH.AppE (TH.ConE 'Just) (TH.AppE (TH.VarE 'unArray) (TH.VarE arrName )))
             ]
         trueStmt = TH.AppE (TH.VarE 'pure) (TH.ConE 'Nothing)
-     in TH.DoE
+     in TH.DoE Nothing
         [ TH.BindS (TH.VarP ptrName) $ TH.AppE (TH.VarE 'peek) e
         , TH.NoBindS $ TH.CaseE (TH.AppE ((TH.AppE (TH.VarE '(==)) (TH.VarE 'nullPtr))) (TH.VarE ptrName))
             [ TH.Match (TH.ConP 'True []) (TH.NormalB trueStmt) []
@@ -176,7 +176,7 @@ argTypeToMarshalExp NullableArrayArg e    = pure $
 argTypeToMarshalExp (ObjectArg str) e = do
     convert <- (\(_, v, _) -> v) <$> getObjectConvert str
     let rpName = TH.mkName "resourcePtr"
-    pure $ TH.DoE
+    pure $ TH.DoE Nothing
         [ TH.BindS (TH.SigP (TH.VarP rpName) (TH.AppT (TH.ConT ''Ptr) (TH.ConT ''WlResource))) (TH.AppE (TH.VarE 'peek) e)
         , TH.NoBindS (TH.AppE convert (TH.VarE rpName))
         ]
@@ -185,7 +185,7 @@ argTypeToMarshalExp (NullableObjectArg str) e = do
     let objPtr = TH.mkName "ptrName"
         falseStmt = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'Just)) $ TH.AppE convert (TH.VarE objPtr)
         trueStmt = TH.AppE (TH.VarE 'pure) (TH.ConE 'Nothing)
-    pure $ TH.DoE
+    pure $ TH.DoE Nothing
         [ TH.BindS (TH.SigP (TH.VarP objPtr) (TH.AppT (TH.ConT ''Ptr) (TH.ConT ''WlResource))) $ TH.AppE (TH.VarE 'peek) e
         , TH.NoBindS $ TH.CaseE (TH.AppE ((TH.AppE (TH.VarE '(==)) (TH.VarE 'nullPtr))) (TH.VarE objPtr))
             [ TH.Match (TH.ConP 'True []) (TH.NormalB trueStmt) []
@@ -196,7 +196,7 @@ argTypeToMarshalExp (NullableNewIdArg _) e = pure $
     let objPtr = TH.mkName "ptrName"
         falseStmt = TH.AppE (TH.VarE 'pure) $ TH.AppE (TH.ConE 'Just) (TH.VarE objPtr)
         trueStmt = TH.AppE (TH.VarE 'pure) (TH.ConE 'Nothing)
-     in TH.DoE
+     in TH.DoE Nothing
         [ TH.BindS (TH.VarP objPtr) $ TH.AppE (TH.VarE 'peek) e
         , TH.NoBindS $ TH.CaseE (TH.AppE ((TH.AppE (TH.VarE '(==)) (TH.LitE $ TH.IntegerL 0))) (TH.VarE objPtr))
             [ TH.Match (TH.ConP 'True []) (TH.NormalB trueStmt) []
@@ -224,7 +224,7 @@ makeMarshalBody dataPtr funName xs = do
     argStmts <- sequence $ zipWith makeArgStmt (zip xs [0..]) argNames
     let applyExp = foldl TH.AppE (TH.VarE funName) $ fmap TH.VarE argNames
     let successCase = TH.NoBindS applyExp
-    pure $ TH.NormalB $ TH.DoE (argStmts ++ [successCase])
+    pure $ TH.NormalB $ TH.DoE Nothing (argStmts ++ [successCase])
 
 makeMarshalClause :: Monad m => [ArgumentType] -> Scanner m TH.Clause
 makeMarshalClause xs = do

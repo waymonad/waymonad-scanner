@@ -5,7 +5,6 @@ where
 
 import Graphics.Wayland.Server (Client (..))
 
-import Control.Monad.Fail (MonadFail)
 import Data.IORef
 import Data.Word (Word32)
 import Foreign.C.Types (CInt(..))
@@ -36,7 +35,7 @@ makeDispatchClause (dataTName, fs) xs = do
              in TH.Match (TH.LitP (TH.IntegerL index)) (TH.NormalB matchExp) []
         failClause = TH.Match TH.WildP (TH.NormalB $ TH.AppE (TH.VarE 'pure) (TH.ConE '())) []
         clauses = zipWith makeMatch fs [0..] ++ [failClause]
-        funExp = TH.DoE [dataStmt, TH.NoBindS (TH.CaseE (TH.VarE opName) clauses)]
+        funExp = TH.DoE Nothing [dataStmt, TH.NoBindS (TH.CaseE (TH.VarE opName) clauses)]
     pure $ TH.Clause [TH.VarP implName, TH.WildP, TH.VarP opName, TH.WildP, TH.VarP argName] (TH.NormalB funExp) (concat marshalDecs)
 
 makeDispatchRecord :: Monad m => String -> [(String, [ArgumentType])] -> Scanner m TH.Dec

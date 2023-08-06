@@ -10,7 +10,7 @@ module Graphics.Wayland.Scanner.WLS
     )
 where
 
-import Control.Monad.Fail (MonadFail)
+-- import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Data.Map (Map)

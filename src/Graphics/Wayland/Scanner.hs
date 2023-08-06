@@ -5,7 +5,6 @@ module Graphics.Wayland.Scanner
 where
 
 import Foreign.Ptr (Ptr)
-import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadTrans(lift))
 
 import Graphics.Wayland.Scanner.Dispatcher
